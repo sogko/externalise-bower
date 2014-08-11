@@ -25,20 +25,16 @@ gulp.task('default', function () {
  */
 gulp.task('dist-vendor', function() {
 
-    // disable version-checking: https://github.com/eugeneware/bower-resolve#disable-version-checking
-    bowerResolve.offline = true;
-    bowerResolve.init(function () {
-        var b = browserify();
+    var b = browserify();
 
-        // get all bower components ids and resolve the ids to their 'endpoint', which we need for require()
-        bowerPackageIds.forEach(function (id) {
-            b.require(bowerResolve(id), { expose: id });
-        });
-
-        return b.bundle()
-            .pipe(source('vendor.js'))
-            .pipe(gulp.dest('./build'));
+    // get all bower components ids and resolve the ids to their 'endpoint', which we need for require()
+    bowerPackageIds.forEach(function (id) {
+        b.require(bowerResolve.fastReadSync(id), { expose: id });
     });
+
+    return b.bundle()
+        .pipe(source('vendor.js'))
+        .pipe(gulp.dest('./build'));
 });
 
 
