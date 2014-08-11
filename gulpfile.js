@@ -1,33 +1,44 @@
 var gulp = require('gulp')
-  , packager = require('./lib/packager')({debug: true})
+  , _ = require('lodash')
   , browserify = require('browserify')
   , source = require('vinyl-source-stream')
   , sequence = require('run-sequence')
+  , bowerResolve = require('bower-resolve')
   , connect = require('gulp-connect-multi')();
 
+
+// read bower.json and get dependencies' package ids
+var bowerManifest = {};
+try {
+    bowerManifest = require('./bower.json');
+} catch (e) {
+    // does not have a bower.json manifest
+}
+var bowerPackageIds = _.keys(bowerManifest.dependencies);
 
 gulp.task('default', function () {
     sequence('dist-vendor','dist-js','dist-html', 'connect');
 });
-
 
 /**
  * Browserify using a dummy entry point, 'requiring' the bower components on prebundle
  */
 gulp.task('dist-vendor', function() {
 
-    var b = browserify();
+    // disable version-checking: https://github.com/eugeneware/bower-resolve#disable-version-checking
+    bowerResolve.offline = true;
+    bowerResolve.init(function () {
+        var b = browserify();
 
-    // get all bower components ids and resolve the ids to their 'endpoint', which we need for require()
-    packager.getPackageIds().forEach(function (id) {
-        var p = packager.getPackageEndpoint(id);
-        packager.log('Browserify::require: ', id + ' - '+p[0]);
-        b.require(p[0], { expose: id });
+        // get all bower components ids and resolve the ids to their 'endpoint', which we need for require()
+        bowerPackageIds.forEach(function (id) {
+            b.require(bowerResolve(id), { expose: id });
+        });
+
+        return b.bundle()
+            .pipe(source('vendor.js'))
+            .pipe(gulp.dest('./build'));
     });
-
-    return b.bundle()
-        .pipe(source('vendor.js'))
-        .pipe(gulp.dest('./build'));
 });
 
 
@@ -38,9 +49,8 @@ gulp.task('dist-js', function() {
 
     var b = browserify('./src/js/app.js');
 
-    // get all bower components names and resolve the names to their id
-    packager.getPackageNames().forEach(function (id) {
-        packager.log('Browserify::external: ' + id);
+    // get all bower components ids
+    bowerPackageIds.forEach(function (id) {
         b.external(id);
     });
 
