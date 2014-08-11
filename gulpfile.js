@@ -1,8 +1,8 @@
 var gulp = require('gulp')
   , packager = require('./lib/packager')({debug: true})
-  , browserify = require('gulp-browserify')
-  , concat = require('gulp-concat')
-  , sequence = require('gulp-run-sequence')
+  , browserify = require('browserify')
+  , source = require('vinyl-source-stream')
+  , sequence = require('run-sequence')
   , connect = require('gulp-connect-multi')();
 
 
@@ -15,28 +15,39 @@ gulp.task('default', function () {
  * Browserify using a dummy entry point, 'requiring' the bower components on prebundle
  */
 gulp.task('dist-vendor', function() {
-    return gulp.src('./lib/noop.js' , {read: false})
-        .pipe(browserify())
-        .on('prebundle', function(bundle) {
-            packager.require(bundle);
-        })
-        .pipe(concat('vendor.js'))
+
+    var b = browserify();
+
+    // get all bower components ids and resolve the ids to their 'endpoint', which we need for require()
+    packager.getPackageIds().forEach(function (id) {
+        var p = packager.getPackageEndpoint(id);
+        packager.log('Browserify::require: ', id + ' - '+p[0]);
+        b.require(p[0], { expose: id });
+    });
+
+    return b.bundle()
+        .pipe(source('vendor.js'))
         .pipe(gulp.dest('./build'));
-})
+});
 
 
 /**
  * Browserify using your main application entry point, 'external'ising the bower components on prebundle
  */
 gulp.task('dist-js', function() {
-    return gulp.src('./src/js/app.js', {read: false})
-        .pipe(browserify())
-        .on('prebundle', function(bundle) {
-            packager.external(bundle);
-        })
-        .pipe(concat('app.js'))
+
+    var b = browserify('./src/js/app.js');
+
+    // get all bower components names and resolve the names to their id
+    packager.getPackageNames().forEach(function (id) {
+        packager.log('Browserify::external: ' + id);
+        b.external(id);
+    });
+
+    return b.bundle()
+        .pipe(source('app.js'))
         .pipe(gulp.dest('./build'));
-})
+});
 
 
 /**
@@ -45,7 +56,7 @@ gulp.task('dist-js', function() {
 gulp.task('dist-html', function() {
     return gulp.src('./src/index.html')
         .pipe(gulp.dest('./build'));
-})
+});
 
 
 /**
